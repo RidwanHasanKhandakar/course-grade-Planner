@@ -17,11 +17,13 @@ type Course = {
   assessments: Assessment[];
   gradeScale: GradeBand[];
 };
+type AppTheme = "dark" | "light" | "mono";
 type AppState = {
   courses: Course[];
   historyCredits: number;
   historyCgpa: number;
   gpaScaleMax: number;
+  theme: AppTheme;
 };
 type CourseResult = {
   current: number | null;
@@ -32,6 +34,7 @@ type CourseResult = {
 };
 
 const STORAGE_KEY = "gradepath-planner-v1";
+const DEFAULT_THEME: AppTheme = "dark";
 const DEFAULT_SCALE: GradeBand[] = [
   { letter: "A", minimum: 90, points: 4.0 },
   { letter: "A-", minimum: 85, points: 3.7 },
@@ -77,6 +80,7 @@ function starterState(): AppState {
     historyCredits: 0,
     historyCgpa: 0,
     gpaScaleMax: 4,
+    theme: DEFAULT_THEME,
     courses: [
       {
         id: uid(),
@@ -96,7 +100,11 @@ function isValidState(value: unknown): value is AppState {
     Array.isArray(candidate.courses) &&
     typeof candidate.historyCredits === "number" &&
     typeof candidate.historyCgpa === "number" &&
-    typeof candidate.gpaScaleMax === "number"
+    typeof candidate.gpaScaleMax === "number" &&
+    (candidate.theme === undefined ||
+      candidate.theme === "dark" ||
+      candidate.theme === "light" ||
+      candidate.theme === "mono")
   );
 }
 
@@ -106,10 +114,10 @@ function loadState(): AppState {
   try {
     const parsed: unknown = JSON.parse(saved);
     if (!isValidState(parsed)) throw new Error("The saved planner data has an invalid format.");
-    return parsed;
+    return { ...parsed, theme: parsed.theme ?? DEFAULT_THEME };
   } catch (error) {
     errorNotice = `Saved planner data could not be loaded: ${error instanceof Error ? error.message : "unknown error"}. An empty workspace is shown; the saved data has not been changed.`;
-    return { courses: [], historyCredits: 0, historyCgpa: 0, gpaScaleMax: 4 };
+    return { courses: [], historyCredits: 0, historyCgpa: 0, gpaScaleMax: 4, theme: DEFAULT_THEME };
   }
 }
 
@@ -324,7 +332,7 @@ function renderEditor(): string {
       </div>
 
       <div class="section-heading assessments-heading">
-        <div><h2>Assessment breakdown</h2><p>Set each component's course weight, enter returned marks, and adjust your target.</p></div>
+        <div>        <h2 title="Each assessment contributes its weight to your projected course mark. Enter a target for ungraded work.">Assessment breakdown</h2><p>Set each component's course weight, enter returned marks, and adjust your target.</p></div>
         <span class="weight-total ${weightOff ? "weight-warning" : "weight-valid"}">${formatNumber(result.totalWeight, 0)}% <span>of 100%</span></span>
       </div>
       <div class="assessment-actions">
@@ -361,7 +369,7 @@ function renderPlanner(): string {
     }, 0) / (state.courses.reduce((total, course) => total + (course.credits > 0 ? course.credits : 0), 0) || 1);
   return `
     <div class="page-heading">
-      <div><div class="eyebrow">YOUR ACADEMIC SNAPSHOT</div><h1>Course planner</h1><p>Build your grading rules, track marks, and see where your semester is headed.</p></div>
+      <div><div class="eyebrow">YOUR ACADEMIC SNAPSHOT</div><h1 title="Your semester overview: projected GPA, CGPA, average marks, and course grades.">Course planner</h1><p>Build your grading rules, track marks, and see where your semester is headed.</p></div>
       <div class="heading-actions"><button class="button button-secondary" type="button" data-action="export">↗ Export data</button><button class="button button-primary" type="button" data-action="add-course">＋ Add course</button></div>
     </div>
     <div class="stats-grid">
@@ -371,7 +379,7 @@ function renderPlanner(): string {
     </div>
     <div class="workspace-grid">
       <aside class="course-list-panel">
-        <div class="list-heading"><div><h2>Your courses</h2><span>${state.courses.length} in this semester</span></div><button class="icon-button add-small" type="button" data-action="add-course" aria-label="Add course">＋</button></div>
+        <div class="list-heading"><div><h2 title="Select a course to edit its marks, assessment weights, and grade scale.">Your courses</h2><span>${state.courses.length} in this semester</span></div><button class="icon-button add-small" type="button" data-action="add-course" aria-label="Add course">＋</button></div>
         <div class="course-list">${renderCourseList()}</div>
         ${state.courses.length ? `<button class="clear-courses" type="button" data-action="clear-courses">Clear all courses</button>` : ""}
         <div class="list-tip"><span>✦</span><p><strong>Tip</strong>Set the expected score for ungraded components to explore different outcomes.</p></div>
@@ -385,9 +393,18 @@ function renderSettings(): string {
   const cgpa = projectedCgpa();
   return `
     <div class="page-heading">
-      <div><div class="eyebrow">MAKE IT YOURS</div><h1>Academic settings</h1><p>Set your previous academic record to include it in your cumulative GPA projection.</p></div>
-      <button class="button button-secondary" type="button" data-action="go-planner">← Back to planner</button>
+      <div><div class="eyebrow">MAKE IT YOURS</div><h1 title="Choose your display colors, then set the academic details used in your projections.">Academic settings</h1><p>Choose your game colors and set up your academic record.</p></div>
+      <button class="button button-secondary" type="button" data-action="go-planner" title="Return to your courses and grade projections.">← Back to planner</button>
     </div>
+    <section class="settings-card theme-settings-card">
+      <span class="settings-icon" aria-hidden="true">◐</span>
+      <div class="settings-copy"><h2 title="Change the app's color palette. Your selected theme is saved on this device.">Pick your theme</h2><p>Choose your favorite arcade colors. This only changes how the app looks.</p></div>
+      <div class="theme-options" role="group" aria-label="Color theme">
+        <button class="theme-option ${state.theme === "dark" ? "theme-selected" : ""}" type="button" data-action="theme-dark" aria-pressed="${state.theme === "dark"}" title="Use the original dark arcade palette."><span class="theme-swatch swatch-dark">Aa</span><span>Dark arcade</span></button>
+        <button class="theme-option ${state.theme === "light" ? "theme-selected" : ""}" type="button" data-action="theme-light" aria-pressed="${state.theme === "light"}" title="Use the light arcade palette with bright backgrounds and pixel-style accents."><span class="theme-swatch swatch-light">Aa</span><span>Light arcade</span></button>
+        <button class="theme-option ${state.theme === "mono" ? "theme-selected" : ""}" type="button" data-action="theme-mono" aria-pressed="${state.theme === "mono"}" title="Use a simple black-and-white palette with the same pixel style."><span class="theme-swatch swatch-mono">Aa</span><span>Black &amp; white</span></button>
+      </div>
+    </section>
     <section class="settings-card">
       <span class="settings-icon">◷</span>
       <div class="settings-copy"><h2>Previous academic record</h2><p>Enter your current CGPA and completed credit hours. Your projection combines this history with the courses in your planner.</p></div>
@@ -408,7 +425,7 @@ function renderSettings(): string {
 function render(): void {
   const activePage = page === "planner" ? renderPlanner() : renderSettings();
   app!.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell" data-theme="${state.theme}">
       <aside class="sidebar">
         <a href="#" class="brand" data-action="go-planner"><span class="brand-mark">g<span>.</span></span><span>gradepath<small>STUDENT WORKSPACE</small></span></a>
         <div class="sidebar-label">WORKSPACE</div>
@@ -547,6 +564,15 @@ function runAction(button: HTMLButtonElement | HTMLAnchorElement): void {
     case "go-settings":
       page = "settings";
       break;
+    case "theme-dark":
+      state.theme = "dark";
+      break;
+    case "theme-light":
+      state.theme = "light";
+      break;
+    case "theme-mono":
+      state.theme = "mono";
+      break;
     case "select-course":
       selectedCourseId = button.dataset.course ?? null;
       break;
@@ -598,12 +624,32 @@ function runAction(button: HTMLButtonElement | HTMLAnchorElement): void {
 
 function bindEvents(): void {
   app!.querySelectorAll<HTMLButtonElement | HTMLAnchorElement>("[data-action]").forEach((element) => {
+    if (!element.title) {
+      const action = element.dataset.action;
+      const descriptions: Record<string, string> = {
+        "go-planner": "Open the course planner.",
+        "go-settings": "Open academic settings, including appearance and GPA options.",
+        "add-course": "Add a course using the faculty assessment and grade defaults.",
+        "remove-course": "Remove this course and all its assessment marks.",
+        "add-assessment": "Add a custom assessment row to this course.",
+        "remove-assessment": "Remove this assessment and its mark.",
+        "apply-faculty-defaults": "Replace this course's assessments and grade scale with the faculty defaults.",
+        "add-band": "Add a custom letter-grade cutoff.",
+        "remove-band": "Remove this grade cutoff.",
+        "clear-courses": "Remove every course in this semester.",
+        "dismiss-demo": "Dismiss this introductory note.",
+        export: "Download a JSON backup of your planner data.",
+        "select-course": "Show this course's marks and settings.",
+      };
+      element.title = descriptions[action ?? ""] ?? element.getAttribute("aria-label") ?? element.textContent?.trim() ?? "";
+    }
     element.addEventListener("click", (event) => {
       event.preventDefault();
       runAction(element);
     });
   });
   app!.querySelectorAll<HTMLInputElement>("input[data-field]").forEach((input) => {
+    if (!input.title) input.title = input.getAttribute("aria-label") ?? "";
     input.addEventListener("input", () => {
       updateInput(input);
       saveState();
