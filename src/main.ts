@@ -18,8 +18,15 @@ type Course = {
   gradeScale: GradeBand[];
 };
 type AppTheme = "dark" | "light" | "mono";
+type GpaCourseEntry = {
+  id: string;
+  name: string;
+  credits: number;
+  grade: string;
+};
 type AppState = {
   courses: Course[];
+  gpaEntries: GpaCourseEntry[];
   historyCredits: number;
   historyCgpa: number;
   gpaScaleMax: number;
@@ -52,7 +59,7 @@ const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) throw new Error("The app root element could not be found.");
 
-let page: "planner" | "settings" = "planner";
+let page: "planner" | "calculator" | "settings" = "planner";
 let selectedCourseId: string | null = null;
 let notice = "";
 let errorNotice = "";
@@ -81,6 +88,7 @@ function starterState(): AppState {
     historyCgpa: 0,
     gpaScaleMax: 4,
     theme: DEFAULT_THEME,
+    gpaEntries: [],
     courses: [
       {
         id: uid(),
@@ -98,6 +106,15 @@ function isValidState(value: unknown): value is AppState {
   const candidate = value as Partial<AppState>;
   return (
     Array.isArray(candidate.courses) &&
+    (candidate.gpaEntries === undefined ||
+      (Array.isArray(candidate.gpaEntries) &&
+        candidate.gpaEntries.every((entry) =>
+          entry &&
+          typeof entry.id === "string" &&
+          typeof entry.name === "string" &&
+          typeof entry.credits === "number" &&
+          typeof entry.grade === "string",
+        ))) &&
     typeof candidate.historyCredits === "number" &&
     typeof candidate.historyCgpa === "number" &&
     typeof candidate.gpaScaleMax === "number" &&
@@ -114,10 +131,14 @@ function loadState(): AppState {
   try {
     const parsed: unknown = JSON.parse(saved);
     if (!isValidState(parsed)) throw new Error("The saved planner data has an invalid format.");
-    return { ...parsed, theme: parsed.theme ?? DEFAULT_THEME };
+    return {
+      ...parsed,
+      theme: parsed.theme ?? DEFAULT_THEME,
+      gpaEntries: parsed.gpaEntries ?? [],
+    };
   } catch (error) {
     errorNotice = `Saved planner data could not be loaded: ${error instanceof Error ? error.message : "unknown error"}. An empty workspace is shown; the saved data has not been changed.`;
-    return { courses: [], historyCredits: 0, historyCgpa: 0, gpaScaleMax: 4, theme: DEFAULT_THEME };
+    return { courses: [], gpaEntries: [], historyCredits: 0, historyCgpa: 0, gpaScaleMax: 4, theme: DEFAULT_THEME };
   }
 }
 
@@ -211,6 +232,82 @@ function projectedCgpa(): number | null {
   const credits = state.historyCredits + term.credits;
   if (!credits) return null;
   return (state.historyCgpa * state.historyCredits + term.qualityPoints) / credits;
+}
+
+function getGpaEntryResult(): { gpa: number | null; credits: number; qualityPoints: number } {
+  let credits = 0;
+  let qualityPoints = 0;
+  for (const entry of state.gpaEntries) {
+    const grade = DEFAULT_SCALE.find((band) => band.letter === entry.grade);
+    if (!grade || entry.credits <= 0) continue;
+    credits += entry.credits;
+    qualityPoints += (grade.points * state.gpaScaleMax / 4) * entry.credits;
+  }
+  return { gpa: credits > 0 ? qualityPoints / credits : null, credits, qualityPoints };
+}
+
+function getEntryProjectedCgpa(): number | null {
+  const entries = getGpaEntryResult();
+  const credits = state.historyCredits + entries.credits;
+  if (!credits) return null;
+  return (state.historyCgpa * state.historyCredits + entries.qualityPoints) / credits;
+}
+
+function renderGpaEntries(): string {
+  if (!state.gpaEntries.length) {
+    return `<div class="calculator-empty"><span class="empty-icon">◈</span><strong>No course grades yet</strong><span>Add a course below, then choose its grade and credit hours.</span></div>`;
+  }
+  return state.gpaEntries.map((entry, index) => `
+    <div class="gpa-entry-row">
+      <span class="gpa-entry-index">${String(index + 1).padStart(2, "0")}</span>
+      <label class="gpa-entry-name">
+        <span class="sr-only">Course name</span>
+        <input data-key="gpa-name-${entry.id}" data-field="gpa-name" data-entry="${entry.id}" value="${escapeHtml(entry.name)}" aria-label="Course name" placeholder="Course name" />
+      </label>
+      <label class="gpa-entry-credits">
+        <span class="gpa-field-label">CREDITS</span>
+        <input data-key="gpa-credits-${entry.id}" data-field="gpa-credits" data-entry="${entry.id}" type="number" min="0" step="0.5" value="${entry.credits}" aria-label="Course credit hours" />
+      </label>
+      <label class="gpa-entry-grade">
+        <span class="gpa-field-label">GRADE</span>
+        <select data-key="gpa-grade-${entry.id}" data-field="gpa-grade" data-entry="${entry.id}" aria-label="Course letter grade">
+          <option value="" ${entry.grade ? "" : "selected"}>Select</option>
+          ${DEFAULT_SCALE.map((band) => `<option value="${band.letter}" ${entry.grade === band.letter ? "selected" : ""}>${band.letter}</option>`).join("")}
+        </select>
+      </label>
+      <span class="gpa-entry-points">${entry.grade ? formatNumber((DEFAULT_SCALE.find((band) => band.letter === entry.grade)?.points ?? 0) * state.gpaScaleMax / 4, 2) : "—"}<small> pts</small></span>
+      <button class="icon-button" type="button" data-action="remove-gpa-entry" data-entry="${entry.id}" aria-label="Remove ${escapeHtml(entry.name || "course")}">×</button>
+    </div>`).join("");
+}
+
+function renderGpaCalculator(): string {
+  const term = getGpaEntryResult();
+  const cgpa = getEntryProjectedCgpa();
+  const gradesFilled = state.gpaEntries.filter((entry) => entry.grade && entry.credits > 0).length;
+  return `
+    <div class="page-heading">
+      <div>
+        <div class="eyebrow">QUICK GPA CALCULATOR</div>
+        <h1 title="Calculate GPA directly from course letter grades and credit hours.">Grade-to-GPA calculator</h1>
+        <p>Enter your course grades and credits to calculate GPA without assessment details.</p>
+      </div>
+    </div>
+    <div class="gpa-results-grid">
+      <article class="gpa-result-card"><span class="gpa-result-icon">◈</span><div><span>Calculated GPA</span><strong>${formatNumber(term.gpa, 2)}<small> / ${state.gpaScaleMax.toFixed(2)}</small></strong><small>${formatNumber(term.credits, 1)} graded credits</small></div></article>
+      <article class="gpa-result-card gpa-result-highlight"><span class="gpa-result-icon">◎</span><div><span>Projected CGPA</span><strong>${formatNumber(cgpa, 2)}<small> / ${state.gpaScaleMax.toFixed(2)}</small></strong><small>${formatNumber(state.historyCredits + term.credits, 1)} total credits, including academic history</small></div></article>
+    </div>
+    <section class="gpa-calculator-card">
+      <div class="gpa-calculator-heading">
+        <div><h2 title="Add one row for each course. GPA updates automatically as you edit grades and credit hours.">Course grades</h2><p>GPA is weighted by credit hours and updates as you enter grades.</p></div>
+        <span class="gpa-course-count">${gradesFilled} graded</span>
+      </div>
+      <div class="gpa-entry-table">
+        <div class="gpa-entry-header"><span>#</span><span>COURSE</span><span>CREDITS</span><span>LETTER GRADE</span><span>POINTS</span><span></span></div>
+        ${renderGpaEntries()}
+      </div>
+      <button class="button button-add" type="button" data-action="add-gpa-entry" title="Add a course and enter its credit hours and letter grade.">＋ Add course grade</button>
+      <div class="gpa-calculator-note"><span>✦</span><p>Grade points use the standard faculty mapping (A = 4.0, A- = 3.7, and so on), scaled to your GPA maximum. Previous CGPA and completed credits from <button type="button" class="inline-link" data-action="go-settings">Academic settings</button> are included in projected CGPA.</p></div>
+    </section>`;
 }
 
 function initials(name: string): string {
@@ -423,7 +520,12 @@ function renderSettings(): string {
 }
 
 function render(): void {
-  const activePage = page === "planner" ? renderPlanner() : renderSettings();
+  const activePage =
+    page === "planner"
+      ? renderPlanner()
+      : page === "calculator"
+        ? renderGpaCalculator()
+        : renderSettings();
   app!.innerHTML = `
     <div class="app-shell" data-theme="${state.theme}">
       <aside class="sidebar">
@@ -431,6 +533,7 @@ function render(): void {
         <div class="sidebar-label">WORKSPACE</div>
         <nav class="sidebar-nav" aria-label="Main navigation">
           <button class="nav-link ${page === "planner" ? "nav-active" : ""}" data-action="go-planner"><span>▦</span>Course planner</button>
+          <button class="nav-link ${page === "calculator" ? "nav-active" : ""}" data-action="go-calculator"><span>◈</span>GPA calculator</button>
           <button class="nav-link ${page === "settings" ? "nav-active" : ""}" data-action="go-settings"><span>⚙</span>Academic settings</button>
         </nav>
         <div class="sidebar-bottom"><span class="online-dot"></span><span>Saved on this device</span><span class="sidebar-version">v0.1</span></div>
@@ -467,10 +570,13 @@ function updateInput(input: HTMLInputElement): void {
   const field = input.dataset.field;
   const course = getCourse(input.dataset.course);
   const assessment = course?.assessments.find((item) => item.id === input.dataset.assessment);
+  const gpaEntry = state.gpaEntries.find((item) => item.id === input.dataset.entry);
   if (field === "course-name" && course) course.name = input.value;
   if (field === "credits" && course) setNumericField(input, (value) => (course.credits = Math.max(0, value ?? 0)));
   if (field === "assessment-name" && assessment) assessment.name = input.value;
   if (field === "assessment-details" && assessment) assessment.details = input.value;
+  if (field === "gpa-name" && gpaEntry) gpaEntry.name = input.value;
+  if (field === "gpa-credits" && gpaEntry) setNumericField(input, (value) => (gpaEntry.credits = Math.max(0, value ?? 0)));
   if (field === "weight" && assessment) setNumericField(input, (value) => (assessment.weight = Math.max(0, value ?? 0)));
   if (field === "earned" && assessment) setNumericField(input, (value) => (assessment.earned = value === null ? null : Math.max(0, value)));
   if (field === "outOf" && assessment) setNumericField(input, (value) => (assessment.outOf = Math.max(0.01, value ?? 100)));
@@ -502,16 +608,18 @@ function updateInput(input: HTMLInputElement): void {
   }
 }
 
-function rerenderKeepingFocus(input: HTMLInputElement): void {
-  const key = input.dataset.key;
-  const start = input.selectionStart;
-  const end = input.selectionEnd;
+function rerenderKeepingFocus(element: HTMLInputElement | HTMLSelectElement): void {
+  const key = element.dataset.key;
+  const start = element instanceof HTMLInputElement ? element.selectionStart : null;
+  const end = element instanceof HTMLInputElement ? element.selectionEnd : null;
   render();
   if (!key) return;
-  const replacement = app!.querySelector<HTMLInputElement>(`[data-key="${CSS.escape(key)}"]`);
+  const replacement = app!.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
   if (replacement) {
     replacement.focus();
-    if (start !== null && end !== null) replacement.setSelectionRange(start, end);
+    if (replacement instanceof HTMLInputElement && start !== null && end !== null) {
+      replacement.setSelectionRange(start, end);
+    }
   }
 }
 
@@ -564,6 +672,9 @@ function runAction(button: HTMLButtonElement | HTMLAnchorElement): void {
     case "go-settings":
       page = "settings";
       break;
+    case "go-calculator":
+      page = "calculator";
+      break;
     case "theme-dark":
       state.theme = "dark";
       break;
@@ -586,6 +697,17 @@ function runAction(button: HTMLButtonElement | HTMLAnchorElement): void {
       if (course) {
         course.assessments.push({ id: uid(), name: "New assessment", details: "", weight: 0, earned: null, outOf: 100, target: 80 });
       }
+      break;
+    case "add-gpa-entry":
+      state.gpaEntries.push({
+        id: uid(),
+        name: `Course ${state.gpaEntries.length + 1}`,
+        credits: 3,
+        grade: "",
+      });
+      break;
+    case "remove-gpa-entry":
+      state.gpaEntries = state.gpaEntries.filter((entry) => entry.id !== button.dataset.entry);
       break;
     case "apply-faculty-defaults":
       if (course && window.confirm("Replace this course's assessment breakdown and grade scale with the faculty defaults? Existing marks and custom grade rules for this course will be removed.")) {
@@ -629,6 +751,7 @@ function bindEvents(): void {
       const descriptions: Record<string, string> = {
         "go-planner": "Open the course planner.",
         "go-settings": "Open academic settings, including appearance and GPA options.",
+        "go-calculator": "Calculate GPA from course letter grades and credits.",
         "add-course": "Add a course using the faculty assessment and grade defaults.",
         "remove-course": "Remove this course and all its assessment marks.",
         "add-assessment": "Add a custom assessment row to this course.",
@@ -654,6 +777,15 @@ function bindEvents(): void {
       updateInput(input);
       saveState();
       rerenderKeepingFocus(input);
+    });
+  });
+  app!.querySelectorAll<HTMLSelectElement>('select[data-field="gpa-grade"]').forEach((select) => {
+    select.addEventListener("change", () => {
+      const entry = state.gpaEntries.find((item) => item.id === select.dataset.entry);
+      if (!entry) return;
+      entry.grade = select.value;
+      saveState();
+      rerenderKeepingFocus(select);
     });
   });
 }

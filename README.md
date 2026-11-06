@@ -18,6 +18,10 @@ npm run dev
 
 The site stores planner data in the current browser only; it does not upload marks to a server. Use **Export data** to save a JSON backup.
 
+## GPA calculator
+
+The **GPA calculator** menu lets you enter course names, credit hours, and letter grades without filling in assessment breakdowns. It calculates credit-weighted GPA live, then combines those course quality points with the previous CGPA and completed credits from **Academic settings** to estimate CGPA. The grade-to-points conversion uses the default 4.0 mapping (A = 4.0, A- = 3.7, B+ = 3.3, and so on), scaled to the selected GPA maximum. This mapping is an estimate; verify the point values against your university's official rules.
+
 ## Faculty assessment defaults
 
 New courses use the supplied faculty distribution: Class Tests 5%, Mid Test 1 10%, Mid Test 2 10%, Lab Assessment 15%, Project 15%, Mid Term Examination 20%, and Final Term Examination 25%. The two mid tests split the provided 20% mid-test allocation evenly, making continuous assessment 55% and summative assessment 45%.
