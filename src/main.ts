@@ -4,6 +4,7 @@ type GradeBand = { letter: string; minimum: number; points: number };
 type Assessment = {
   id: string;
   name: string;
+  details?: string;
   weight: number;
   earned: number | null;
   outOf: number;
@@ -32,15 +33,16 @@ type CourseResult = {
 
 const STORAGE_KEY = "gradepath-planner-v1";
 const DEFAULT_SCALE: GradeBand[] = [
-  { letter: "A", minimum: 93, points: 4.0 },
-  { letter: "A-", minimum: 90, points: 3.7 },
-  { letter: "B+", minimum: 87, points: 3.3 },
-  { letter: "B", minimum: 83, points: 3.0 },
-  { letter: "B-", minimum: 80, points: 2.7 },
-  { letter: "C+", minimum: 77, points: 2.3 },
-  { letter: "C", minimum: 73, points: 2.0 },
-  { letter: "C-", minimum: 70, points: 1.7 },
-  { letter: "D", minimum: 60, points: 1.0 },
+  { letter: "A", minimum: 90, points: 4.0 },
+  { letter: "A-", minimum: 85, points: 3.7 },
+  { letter: "B+", minimum: 80, points: 3.3 },
+  { letter: "B", minimum: 75, points: 3.0 },
+  { letter: "B-", minimum: 70, points: 2.7 },
+  { letter: "C+", minimum: 65, points: 2.3 },
+  { letter: "C", minimum: 60, points: 2.0 },
+  { letter: "C-", minimum: 55, points: 1.7 },
+  { letter: "D+", minimum: 50, points: 1.3 },
+  { letter: "D", minimum: 45, points: 1.0 },
   { letter: "F", minimum: 0, points: 0 },
 ];
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -58,6 +60,18 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
+function defaultAssessments(): Assessment[] {
+  return [
+    { id: uid(), name: "Class Tests", details: "Continuous assessment · CLO2 (PLO-c) · Analyze", weight: 5, earned: null, outOf: 100, target: 80 },
+    { id: uid(), name: "Mid Test - 1", details: "Continuous assessment · CLO2 (PLO-c) · Analyze", weight: 10, earned: null, outOf: 100, target: 80 },
+    { id: uid(), name: "Mid Test - 2", details: "Continuous assessment · CLO2 (PLO-c) · Analyze", weight: 10, earned: null, outOf: 100, target: 80 },
+    { id: uid(), name: "Lab Assessment", details: "Progressive project · CLO3 (PLO-d) · Determine, apply, develop", weight: 15, earned: null, outOf: 100, target: 80 },
+    { id: uid(), name: "Project", details: "Mini project · CLO4 (PLO-e) · Determine, apply, develop", weight: 15, earned: null, outOf: 100, target: 80 },
+    { id: uid(), name: "Mid Term Examination", details: "Summative assessment · CLO1 (PLO-a) · Analyze, determine, apply, develop", weight: 20, earned: null, outOf: 100, target: 80 },
+    { id: uid(), name: "Final Term Examination", details: "Summative assessment · CLO1 (PLO-a) · Analyze, determine, apply, develop", weight: 25, earned: null, outOf: 100, target: 80 },
+  ];
+}
+
 function starterState(): AppState {
   return {
     historyCredits: 0,
@@ -66,39 +80,10 @@ function starterState(): AppState {
     courses: [
       {
         id: uid(),
-        name: "Data Structures",
+        name: "Faculty template course",
         credits: 3,
         gradeScale: structuredClone(DEFAULT_SCALE),
-        assessments: [
-          { id: uid(), name: "Quizzes", weight: 10, earned: 8, outOf: 10, target: 85 },
-          { id: uid(), name: "Assignments", weight: 20, earned: 18, outOf: 20, target: 90 },
-          { id: uid(), name: "Midterm", weight: 30, earned: 38, outOf: 50, target: 78 },
-          { id: uid(), name: "Final exam", weight: 40, earned: null, outOf: 100, target: 82 },
-        ],
-      },
-      {
-        id: uid(),
-        name: "Calculus II",
-        credits: 4,
-        gradeScale: structuredClone(DEFAULT_SCALE),
-        assessments: [
-          { id: uid(), name: "Problem sets", weight: 20, earned: 17, outOf: 20, target: 88 },
-          { id: uid(), name: "Quiz average", weight: 15, earned: 12, outOf: 15, target: 82 },
-          { id: uid(), name: "Midterm", weight: 25, earned: 34, outOf: 50, target: 75 },
-          { id: uid(), name: "Final exam", weight: 40, earned: null, outOf: 100, target: 78 },
-        ],
-      },
-      {
-        id: uid(),
-        name: "Academic Writing",
-        credits: 3,
-        gradeScale: structuredClone(DEFAULT_SCALE),
-        assessments: [
-          { id: uid(), name: "Essays", weight: 35, earned: 32, outOf: 35, target: 92 },
-          { id: uid(), name: "Presentation", weight: 20, earned: null, outOf: 100, target: 88 },
-          { id: uid(), name: "Research project", weight: 25, earned: null, outOf: 100, target: 85 },
-          { id: uid(), name: "Final portfolio", weight: 20, earned: null, outOf: 100, target: 90 },
-        ],
+        assessments: defaultAssessments(),
       },
     ],
   };
@@ -265,6 +250,7 @@ function renderAssessments(course: Course): string {
           <label class="assessment-name">
             <span class="sr-only">Assessment name</span>
             <input data-key="assessment-name-${assessment.id}" data-field="assessment-name" data-assessment="${assessment.id}" data-course="${course.id}" value="${escapeHtml(assessment.name)}" aria-label="Assessment name" />
+            <input class="assessment-details-input" data-key="assessment-details-${assessment.id}" data-field="assessment-details" data-assessment="${assessment.id}" data-course="${course.id}" value="${escapeHtml(assessment.details ?? "")}" placeholder="CLO / notes" aria-label="Assessment outcomes or notes" />
           </label>
           <label class="number-cell weight-cell">
             <span class="sr-only">Weight percent</span>
@@ -340,6 +326,9 @@ function renderEditor(): string {
       <div class="section-heading assessments-heading">
         <div><h2>Assessment breakdown</h2><p>Set each component's course weight, enter returned marks, and adjust your target.</p></div>
         <span class="weight-total ${weightOff ? "weight-warning" : "weight-valid"}">${formatNumber(result.totalWeight, 0)}% <span>of 100%</span></span>
+      </div>
+      <div class="assessment-actions">
+        <button class="button button-preset" type="button" data-action="apply-faculty-defaults" data-course="${course.id}">✦ Load faculty assessment defaults</button>
       </div>
       ${weightOff ? `<div class="inline-notice">Assessment weights add up to ${formatNumber(result.totalWeight, 1)}%. The projection is normalized across the weights entered; adjust them to match your course outline.</div>` : ""}
       <div class="assessment-table">
@@ -434,7 +423,7 @@ function render(): void {
         <div class="content-area">
           ${errorNotice ? `<div class="notice notice-error" role="alert">${escapeHtml(errorNotice)}</div>` : ""}
           ${notice ? `<div class="notice notice-success" role="status">${escapeHtml(notice)}</div>` : ""}
-          ${state.courses.length > 0 && !demoDismissed && !localStorage.getItem(STORAGE_KEY) ? `<div class="demo-banner"><span>✦</span><span><strong>Sample data</strong> — these example marks are here to show how the planner works. Edit them or clear the courses to get started.</span><button type="button" data-action="dismiss-demo" aria-label="Dismiss sample data notice">×</button></div>` : ""}
+          ${state.courses.length > 0 && !demoDismissed && !localStorage.getItem(STORAGE_KEY) ? `<div class="demo-banner"><span>✦</span><span><strong>Faculty defaults loaded</strong> — assessment weights and grade cutoffs are ready to customize. Enter your marks or add another course.</span><button type="button" data-action="dismiss-demo" aria-label="Dismiss defaults notice">×</button></div>` : ""}
           ${activePage}
           <footer class="app-footer"><span>Gradepath · A clearer view of your semester</span><span>Projections are estimates, not official grades.</span></footer>
         </div>
@@ -464,6 +453,7 @@ function updateInput(input: HTMLInputElement): void {
   if (field === "course-name" && course) course.name = input.value;
   if (field === "credits" && course) setNumericField(input, (value) => (course.credits = Math.max(0, value ?? 0)));
   if (field === "assessment-name" && assessment) assessment.name = input.value;
+  if (field === "assessment-details" && assessment) assessment.details = input.value;
   if (field === "weight" && assessment) setNumericField(input, (value) => (assessment.weight = Math.max(0, value ?? 0)));
   if (field === "earned" && assessment) setNumericField(input, (value) => (assessment.earned = value === null ? null : Math.max(0, value)));
   if (field === "outOf" && assessment) setNumericField(input, (value) => (assessment.outOf = Math.max(0.01, value ?? 100)));
@@ -517,23 +507,23 @@ function removeCourse(courseId: string): void {
 }
 
 function addCourse(): void {
-  const defaultScale = DEFAULT_SCALE.map((band) => ({
-    ...band,
-    points: Math.round((band.points * state.gpaScaleMax / 4) * 100) / 100,
-  }));
   const course: Course = {
     id: uid(),
     name: "New course",
     credits: 3,
-    gradeScale: defaultScale,
-    assessments: [
-      { id: uid(), name: "Midterm", weight: 40, earned: null, outOf: 100, target: 80 },
-      { id: uid(), name: "Final exam", weight: 60, earned: null, outOf: 100, target: 80 },
-    ],
+    gradeScale: defaultGradeScale(),
+    assessments: defaultAssessments(),
   };
   state.courses.push(course);
   selectedCourseId = course.id;
   page = "planner";
+}
+
+function defaultGradeScale(): GradeBand[] {
+  return DEFAULT_SCALE.map((band) => ({
+    ...band,
+    points: Math.round((band.points * state.gpaScaleMax / 4) * 100) / 100,
+  }));
 }
 
 function downloadData(): void {
@@ -568,7 +558,13 @@ function runAction(button: HTMLButtonElement | HTMLAnchorElement): void {
       break;
     case "add-assessment":
       if (course) {
-        course.assessments.push({ id: uid(), name: "New assessment", weight: 0, earned: null, outOf: 100, target: 80 });
+        course.assessments.push({ id: uid(), name: "New assessment", details: "", weight: 0, earned: null, outOf: 100, target: 80 });
+      }
+      break;
+    case "apply-faculty-defaults":
+      if (course && window.confirm("Replace this course's assessment breakdown and grade scale with the faculty defaults? Existing marks and custom grade rules for this course will be removed.")) {
+        course.assessments = defaultAssessments();
+        course.gradeScale = defaultGradeScale();
       }
       break;
     case "remove-assessment":

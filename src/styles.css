@@ -74,6 +74,9 @@ h1, h2, p { margin: 0; }
 .button-quiet { min-height: 29px; border-color: var(--red); color: var(--red); font-size: 17px; }
 .button-add { min-height: 29px; margin: 8px 0 0; padding: 0 8px; border: 2px dashed var(--purple); background: transparent; color: var(--yellow); font-size: 18px; }
 .button-add:hover { background: #b68aff20; }
+.assessment-actions { display: flex; justify-content: flex-end; margin: -4px 0 8px; }
+.button-preset { min-height: 27px; padding: 0 7px; border-color: var(--yellow); background: #ffe66d0b; color: var(--yellow); font-size: 16px; }
+.button-preset:hover { background: #ffe66d1a; }
 
 .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; margin-bottom: 15px; }
 .stat-card { min-height: 80px; display: flex; align-items: center; gap: 10px; padding: 12px; border: 2px solid var(--line); background: var(--panel); box-shadow: 4px 4px 0 #09070e; }
@@ -149,10 +152,14 @@ h1, h2, p { margin: 0; }
 .assessment-table { width: 100%; }
 .assessment-header, .assessment-row { display: grid; grid-template-columns: minmax(75px, 1.7fr) minmax(43px, .7fr) minmax(86px, 1.2fr) minmax(58px, .85fr) minmax(46px, .7fr) 22px; gap: 6px; align-items: center; }
 .assessment-header { padding: 0 3px 6px; color: var(--pink); font: 6px/1.5 var(--pixel); }
-.assessment-row { min-height: 39px; padding: 4px 3px; border-top: 1px solid var(--line); }
+.assessment-row { min-height: 45px; padding: 4px 3px; border-top: 1px solid var(--line); }
 .assessment-row input, .scale-row input { min-width: 0; width: 100%; height: 27px; padding: 0 6px; border: 1px solid #594165; outline: none; background: #100d16; color: var(--white); font-size: 17px; }
 .assessment-row input:focus, .scale-row input:focus, .settings-input-wrap input:focus { border-color: var(--yellow); box-shadow: 2px 2px 0 #5c3c75; }
+.assessment-name { min-width: 0; display: grid; gap: 2px; }
 .assessment-name input { color: var(--purple); }
+.assessment-name .assessment-details-input { height: 19px; padding: 0 3px; border-color: transparent; background: transparent; color: var(--muted); font-size: 14px; }
+.assessment-name .assessment-details-input::placeholder { color: #806f8d; }
+.assessment-name .assessment-details-input:focus { border-color: #594165; background: #100d16; }
 .number-cell { min-width: 0; display: flex; align-items: center; gap: 3px; color: var(--pink); font-size: 16px; }
 .number-cell input { text-align: center; }
 .weight-cell input { padding: 0 2px; }
